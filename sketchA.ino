@@ -17,7 +17,7 @@ int cycle = 1;
 float speed = 55.0;
 int slope = 0; // 1 = UP, -1 = DOWN, 0 = FLAT
 int gas = 0; // 1 = ON, 0 = OFF 
-int brake = 1; // 1 = 0N, 0 = OFF
+int brake = 0; // 1 = 0N, 0 = OFF
 int mixer = 0; // 1 = ON, 0 = OFF
 unsigned long time = 0;
 unsigned long current_time;
@@ -69,7 +69,8 @@ int comm_server()
                 sprintf(answer, "SLP:  UP\n");
             } else {
                 sprintf(answer, "SLP:FLAT\n");
-            }  
+            }
+            Serial.print(answer);
         } else if (0 == strcmp("GAS: SET\n",request)) {
             gas = 1;
             sprintf(answer, "GAS:  OK\n");
@@ -124,7 +125,7 @@ int task_speed() {
   
   //current_time = millis();
   speed = speed + (accel * 0.1);
-  analogWrite(10, map(speed, 0, 255, 40, 70));
+  analogWrite(10, map(speed, 40, 70, 0, 255));
   //time = millis();
   
   return 0;

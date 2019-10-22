@@ -7,6 +7,11 @@
 // --------------------------------------
 // Global Variables
 // --------------------------------------
+unsigned long main_cycle = 200;
+unsigned long secondary_cycle = 100;
+unsigned long executed_time;
+int cycle = 1;
+
 float speed = 55.0;
 int slope = 0; // 1 = UP, -1 = DOWN, 0 = FLAT
 int gas = 0; // 1 = ON, 0 = OFF 
@@ -14,7 +19,7 @@ int brake = 0; // 1 = 0N, 0 = OFF
 int mixer = 0; // 1 = ON, 0 = OFF
 int lamps = 0; // 1 = ON, 0 = OFF
 int darkness = 0; // Light ratio
-unsigned long time;
+unsigned long time = 0;
 unsigned long current_time;
 
 // --------------------------------------
@@ -64,7 +69,8 @@ int comm_server()
                 sprintf(answer, "SLP:  UP\n");
             } else {
                 sprintf(answer, "SLP:FLAT\n");
-            }  
+            }
+            Serial.print(answer);  
         } else if (0 == strcmp("GAS: SET\n",request)) {
             gas = 1;
             sprintf(answer, "GAS:  OK\n");
@@ -90,10 +96,10 @@ int comm_server()
             sprintf(answer, "MIX:  OK\n");
             Serial.print(answer);
         } else if (0 == strcmp("LIT: REQ\n",request)) {
-            int converter = map(darkness, 0, 255, 00, 99);
-            sprintf(answer,"LIT: %d%\n",converter);
+            darkness = map(darkness, 0, 700, 00, 99);
+            sprintf(answer,"LIT: %d%%\n", darkness);
             Serial.print(answer);
-        } else if (0 == strcmp("LAM: REQ\n",request)) {
+        } else if (0 == strcmp("LAM: SET\n",request)) {
             lamps = 1;
             sprintf(answer,"LAM:  OK\n");
             Serial.print(answer);
@@ -129,9 +135,9 @@ int task_speed() {
     accel = -0.5;
   }
   
-  current_time = millis();
-  speed = speed + (accel * (current_time - time));
-  analogWrite(10, map(speed, 0, 255, 40, 70));
+  //current_time = millis();
+  speed = speed + (accel * 0.1);
+  analogWrite(10, map(speed, 40, 70, 0, 255));
   
   return 0;
 }
@@ -224,19 +230,30 @@ void setup() {
 // Function: loop
 // --------------------------------------
 void loop() {
-    time = millis();
-  
-    if (millis() % 200 == 0) {
-      comm_server();
-    }
-    
-    if (millis() % 100 == 0) {
-      task_gas();
-      task_brake();
-      task_mixer();
-      task_slope();
-      task_speed();
-      task_lightSensor();
-      task_lamps();
-    }
+  if (cycle % 2 != 0) {
+    //time = millis();
+    task_gas();
+    task_brake();
+    task_mixer();
+    task_slope();
+    task_speed();
+    task_lightSensor();
+    task_lamps();
+    current_time = millis();
+  } else {
+    //time = millis();
+    task_gas();
+    task_brake();
+    task_mixer();
+    task_slope();
+    task_speed();
+    task_lightSensor();
+    task_lamps();
+    comm_server();
+    current_time = millis();
+  }
+  cycle = cycle + 1;
+  executed_time = current_time - time;
+  delay(main_cycle - executed_time);
+  time = time + main_cycle;
 }
