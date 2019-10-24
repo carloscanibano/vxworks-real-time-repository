@@ -7,6 +7,11 @@
 // --------------------------------------
 // Global Variables
 // --------------------------------------
+unsigned long main_cycle = 200;
+unsigned long secondary_cycle = 100;
+unsigned long executed_time;
+int cycle = 1;
+
 float speed = 55.0;
 float accel = 0;
 int slope = 0; // 1 = UP, -1 = DOWN, 0 = FLAT
@@ -19,7 +24,7 @@ int distanceSelector = 0; // Potentiometer value (distance)
 int selectedDistance = 0; // Used distance value
 int currentDistance = 0; // Distante left to arrive at final destination
 int executionMode = 0; // 0 = Distance selector, 1 = Tank approach, 2 = Stop mode
-unsigned long time;
+unsigned long time = 0;
 unsigned long current_time;
 unsigned long distance_time;
 unsigned long current_distance_time;
@@ -108,6 +113,22 @@ int comm_server()
             lamps = 0;
             sprintf(answer,"LAM:  OK\n");
             Serial.print(answer);
+        } else if (0 == strcmp("STP: REQ\n",request)) {
+            if (executionMode != 2) {
+              sprintf(answer,"STP:  GO\n");
+            } else {
+              sprintf(answer,"STP:STOP\n");
+            }
+            Serial.print(answer);
+        } else if (0 == strcmp("DS:  REQ\n",request)) {
+            if (executionMode == 2) {
+              sprintf(answer, "DS:STOP\n");
+            } else if (currentDistance == 1) {
+              sprintf(answer,"DS:%d\n", currentDistance * 10000);  
+            } else {
+              sprintf(answer, "DS:00000\n"); 
+            }
+            Serial.print(answer);
         } else {
             // error, send error message
             sprintf(answer,"MSG: ERR\n");
@@ -121,24 +142,29 @@ int comm_server()
 // Function: task_speed
 // --------------------------------------
 int task_speed() {
-  if ((gas == 1) && (slope == -1)) {
-    accel = 0.75;
-  } else if ((gas == 1) && (slope == 1)) {
-    accel = 0.25;
-  } else if ((brake == 1) && (slope == -1)) {
-    accel = -0.25;
-  } else if ((brake == 1) && (slope == 1)) {
-    accel = -0.75;
-  } else if (gas == 1) {
-    accel = 0.5;
-  } else if (brake == 1) {
-    accel = -0.5;
-  }
+  if (executionMode != 2) {
+    if ((gas == 1) && (slope == -1)) {
+      accel = 0.75;
+    } else if ((gas == 1) && (slope == 1)) {
+      accel = 0.25;
+    } else if ((brake == 1) && (slope == -1)) {
+      accel = -0.25;
+    } else if ((brake == 1) && (slope == 1)) {
+      accel = -0.75;
+    } else if (gas == 1) {
+      accel = 0.5;
+    } else if (brake == 1) {
+      accel = -0.5;
+    }
   
-  current_time = millis();
-  speed = speed + (accel * ((current_time - time) / 1000));
-  analogWrite(10, map(speed, 0, 255, 40, 70));
-  time = millis();
+    //current_time = millis();
+    //speed = speed + (accel * ((current_time - time) / 1000));
+    speed = speed + (accel * 0.1);
+    analogWrite(10, map(speed, 40, 70, 0, 255));
+    //time = millis();    
+  } else {
+    speed = 0.0;
+  }
   
   return 0;
 }
@@ -217,7 +243,11 @@ int task_lamps() {
 // Function: task_distanceSelector
 // --------------------------------------
 int task_distanceSelector() {
-  distanceSelector = map(analogRead(1), 0, 1023, 10000, 90000);
+  distanceSelector = map(analogRead(A1), 0, 1022, 1, 10);
+  //distanceSelector = analogRead(A1);
+  //char answer[10];
+  //sprintf(answer,"%d\n", distanceSelector);
+  //Serial.print(answer);
   return 0;
 }
 
@@ -225,10 +255,16 @@ int task_distanceSelector() {
 // Function: task_displayDistance
 // --------------------------------------
 int task_displayDistance() {
-  int digit = 0;
+  int digit;
   
   if (executionMode == 0) {
-    digit = distanceSelector / 10000;
+    //char answer[10];
+    //sprintf(answer, "ANTES: %d\n", distanceSelector);
+    //Serial.print(answer);
+    digit = distanceSelector;
+    //char answera[10];
+    //sprintf(answera, "DESPUES: %d\n", digit);
+    //Serial.print(answera);
   } else if (executionMode == 1) {
     // Time interval
     current_distance_time = millis();
@@ -274,13 +310,17 @@ int task_displayDistance() {
 }
 
 // --------------------------------------
-// Function: task_displayDistance
+// Function: task_distanceSelect
 // --------------------------------------
 int task_distanceSelect() {
   if (digitalRead(6) == HIGH) {
-    selectedDistance = distanceSelector;
-    executionMode = 1;
-    distance_time = millis();
+    if (executionMode != 2) {
+      selectedDistance = distanceSelector;
+      executionMode = 1;
+      distance_time = millis();     
+    } else if (executionMode == 2) {
+      executionMode = 0;
+    }
   }
   return 0;
 }
@@ -308,13 +348,9 @@ void setup() {
 // Function: loop
 // --------------------------------------
 void loop() {
-    time = millis();
-  
-    if (millis() % 200 == 0) {
-      comm_server();
-    }
-    
-    if (millis() % 100 == 0) {
+  if (executionMode == 0) {
+    if (cycle % 2 != 0) {
+      //time = millis();
       task_gas();
       task_brake();
       task_mixer();
@@ -322,5 +358,78 @@ void loop() {
       task_speed();
       task_lightSensor();
       task_lamps();
-    }
+      task_distanceSelector();
+      task_displayDistance();
+      task_distanceSelect();
+      current_time = millis();
+    } else {
+      //time = millis();
+      task_gas();
+      task_brake();
+      task_mixer();
+      task_slope();
+      task_speed();
+      task_lightSensor();
+      task_lamps();
+      task_distanceSelector();
+      task_displayDistance();
+      task_distanceSelect();
+      comm_server();
+      current_time = millis();
+    }   
+  } else if (executionMode == 1) {
+    if (cycle % 2 != 0) {
+      //time = millis();
+      task_gas();
+      task_brake();
+      task_mixer();
+      task_slope();
+      task_speed();
+      task_lightSensor();
+      task_lamps();
+      task_displayDistance();
+      current_time = millis();
+    } else {
+      //time = millis();
+      task_gas();
+      task_brake();
+      task_mixer();
+      task_slope();
+      task_speed();
+      task_lightSensor();
+      task_lamps();
+      task_displayDistance();
+      comm_server();
+      current_time = millis();
+    }     
+  } else {
+    if (cycle % 2 != 0) {
+      //time = millis();
+      task_gas();
+      task_brake();
+      task_mixer();
+      task_slope();
+      task_speed();
+      task_lightSensor();
+      task_lamps();
+      task_distanceSelect();
+      current_time = millis();
+    } else {
+      //time = millis();
+      task_gas();
+      task_brake();
+      task_mixer();
+      task_slope();
+      task_speed();
+      task_lightSensor();
+      task_lamps();
+      task_distanceSelect();
+      comm_server();
+      current_time = millis();
+    }    
+  }
+  cycle = cycle + 1;
+  executed_time = current_time - time;
+  delay(main_cycle - executed_time);
+  time = time + main_cycle; 
 }
