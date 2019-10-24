@@ -21,14 +21,16 @@
 float speed = 0.0;
 int bright = 0;
 int brk_gas = 0; //0 = BRK, 1 = GAS
-int mix_status = 0; // 0 = OFF, 1 = ON
-int mixing_time = 1;	// Time mixing or recharging (30 secs)
-struct timespec slope_time;
-struct timespec speed_time;
-struct timespec mix_time;
-struct timespec bright_time;
-struct timespec current_time;
+int mix_status = 0;// 0 = OFF, 1 = ON
+int light_status = 0;// 0 = OFF, 1 = ON
+int cycle = 0;
+int cycles = 6;
+struct timespec sleep_time;
+struct timespec cycle_time;
+struct timespec finish_time;
+struct timespec start_time;
 struct timespec time_difference;
+struct timespec TS;
 
 #define NS_PER_S  1000000000
 #define PERIOD_NS  500000000
@@ -272,22 +274,18 @@ int task_mix(){
     memset(request,'\0',10);
     memset(answer,'\0',10);
 	
-    if (mixing_time == 1) {
+    if (cycle == 0) {
     	if (mix_status == 0) {
     		strcpy(request, "MIX: SET\n");
     		simulator(request, answer);
     		if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(1);
     		mix_status = 1;
-    		mixing_time = 0;
     	} else {
     		strcpy(request, "MIX: CLR\n");
     		simulator(request, answer);
     		if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(0);
     		mix_status = 0;
-    		mixing_time = 0;
     	}  	
-    } else {
-    	mixing_time = 1;
     }
 
 	return 0;
@@ -316,7 +314,7 @@ int task_lightSensor(){
     	
 
     if (1 == sscanf (answer,"LIT: %d%\n",&bright)) {
-    	if(bright < 10){
+    	if(bright < 20){
     		displayLightSensor(1);  
     	}else{
     		displayLightSensor(0);  
@@ -337,14 +335,20 @@ int task_lamps(){
     memset(request,'\0',10);
     memset(answer,'\0',10);
 	
-    if (bright < 10) {
-    	strcpy(request, "LAM: SET\n");
-    	simulator(request, answer);
-    	if (0 == strcmp(answer,"LAM:  OK\n")) displayLamps(1);
+    if (bright < 20) {
+    	if(light_status == 0){
+    		strcpy(request, "LAM: SET\n");
+    		simulator(request, answer);
+    		if (0 == strcmp(answer,"LAM:  OK\n")) displayLamps(1);
+    		light_status = 1;
+    	}
     } else {
-    	strcpy(request, "LAM: CLR\n");
-    	simulator(request, answer);
-    	if (0 == strcmp(answer,"LAM:  OK\n")) displayLamps(0);
+    	if(light_status == 1){
+    		strcpy(request, "LAM: CLR\n");
+    		simulator(request, answer);
+    		if (0 == strcmp(answer,"LAM:  OK\n")) displayLamps(0);
+    		light_status = 0;
+    	}
     }  	
  
 	return 0;
@@ -356,63 +360,52 @@ int task_lamps(){
  *********************************************************/
 void *controller(void *arg)
 {    
-	clock_gettime(CLOCK_REALTIME, &slope_time);
-	clock_gettime(CLOCK_REALTIME, &speed_time);
-	clock_gettime(CLOCK_REALTIME, &mix_time);
-	clock_gettime(CLOCK_REALTIME, &bright_time);
-	clock_gettime(CLOCK_REALTIME, &current_time);
-	
-	task_speed();
-	task_slope();
-	task_gas();
-	task_brake();
-	task_mix();
-	task_lightSensor();
-	task_lamps();
-	
-    // Endless loop
-    while(1) {
-    	task_slope();
-    	task_speed();
-    	task_lightSensor();
-    	task_lamps();
-    	
-    	/*
-    	// calling task of speed
-    	clock_gettime(CLOCK_REALTIME, &current_time);
-    	diffTime(current_time, speed_time, &time_difference);
-    	if (time_difference.tv_sec >= 5) {
-    	   	check_speed();
-    	   	clock_gettime(CLOCK_REALTIME, &speed_time);
-    	}
-    	
-    	clock_gettime(CLOCK_REALTIME, &current_time);
-    	diffTime(current_time, brigth_time, &time_difference);
-    	if (time_difference.tv_sec >= 6) {
-			task_lightSensor();
-			task_lamps();
-			clock_gettime(CLOCK_REALTIME, &bright_time);
-    	}
-    	*/
-    	
-		// caling task of slope
-    	clock_gettime(CLOCK_REALTIME, &current_time);
-    	diffTime(current_time, slope_time, &time_difference);
-		if (time_difference.tv_sec >= 10) {
-			task_slope();
-			task_speed();
-			task_gas();
-			task_brake();
-	    	clock_gettime(CLOCK_REALTIME, &slope_time);
-		}
-		
-    	clock_gettime(CLOCK_REALTIME, &current_time);
-    	diffTime(current_time, mix_time, &time_difference);
-		if (time_difference.tv_sec >= 15) {
+	cycle_time.tv_sec = 5;
+	cycle_time.tv_nsec = 0;
+	clock_gettime(CLOCK_REALTIME, &start_time);
+	// Endless loop
+	while(1) {
+	    if(cycle == 0){
+	    	task_speed();
+	    	task_brake();
+	    	task_lightSensor();
+	    	task_lamps();
 	    	task_mix();
-	    	clock_gettime(CLOCK_REALTIME, &mix_time);
-		}
-    }
+	    }else if(cycle == 1){
+	    	task_slope();
+	    	task_gas();
+	    	task_lightSensor();
+	    	task_lamps();
+	    }else if(cycle == 2){
+	    	task_speed();
+	    	task_brake();
+	    	task_lightSensor();
+	    	task_lamps();
+	    }else if(cycle == 3){
+	    	task_slope();
+	    	task_gas();
+	    	task_lightSensor();
+	    	task_lamps();
+	    	task_mix();
+	    }else if(cycle == 4){
+	    	task_speed();
+	    	task_brake();
+	    	task_lightSensor();
+	    	task_lamps();
+	    }else if(cycle == 5){
+	    	task_slope();
+	    	task_gas();
+	    	task_lightSensor();
+	    	task_lamps();
+	    }
+	   	
+	    clock_gettime(CLOCK_REALTIME, &finish_time);
+	    cycle = (cycle+1)% cycles;
+	    diffTime(finish_time, start_time, &time_difference);
+	    diffTime(cycle_time, time_difference, &sleep_time);
+	    clock_nanosleep(CLOCK_REALTIME,0, &sleep_time, NULL);
+		addTime(cycle_time,start_time, &start_time);
+	}
 }
 
 /**********************************************************
