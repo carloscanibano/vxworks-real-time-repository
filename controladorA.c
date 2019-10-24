@@ -19,15 +19,13 @@
  *  Global Variables 
  *********************************************************/
 float speed = 0.0;
-float cicle = 10.0;
-float wait = 0.0;
 int brk_gas = 0; //0 = BRK, 1 = GAS
 int mix_status = 0; // 0 = OFF, 1 = ON
 int mixing_time = 1;	// Time mixing or recharging (30 secs)
 struct timespec slope_time;
+struct timespec speed_time;
+struct timespec mix_time;
 struct timespec current_time;
-struct timespec finish_time;
-struct timespec start_time;
 struct timespec time_difference;
 
 #define NS_PER_S  1000000000
@@ -298,19 +296,49 @@ int task_mix(){
  *********************************************************/
 void *controller(void *arg)
 {    
-	start_time.tv_sec = 0;
+	clock_gettime(CLOCK_REALTIME, &slope_time);
+	clock_gettime(CLOCK_REALTIME, &speed_time);
+	clock_gettime(CLOCK_REALTIME, &mix_time);
+	clock_gettime(CLOCK_REALTIME, &current_time);
+	
+	task_speed();
+	task_slope();
+	task_gas();
+	task_brake();
+	task_mix();
+	
     // Endless loop
     while(1) {
-    	task_speed();
     	task_slope();
-    	task_gas();
-    	task_brake();
-    	task_mix();
-    	clock_gettime(CLOCK_REALTIME, &finish_time);
-    	diffTime(finish_time, start_time, &time_difference);
-    	wait = cicle - time_difference.tv_sec;
-    	//delay calvo
-    	start_time.tv_sec += cicle;
+    	task_speed();
+    	
+    	/*
+    	// calling task of speed
+    	clock_gettime(CLOCK_REALTIME, &current_time);
+    	diffTime(current_time, speed_time, &time_difference);
+    	if (time_difference.tv_sec >= 5) {
+    	   	check_speed();
+    	   	clock_gettime(CLOCK_REALTIME, &speed_time);
+    	}
+    	*/
+    	
+		// caling task of slope
+    	clock_gettime(CLOCK_REALTIME, &current_time);
+    	diffTime(current_time, slope_time, &time_difference);
+		if (time_difference.tv_sec >= 10) {
+			task_slope();
+			task_speed();
+			task_gas();
+			task_brake();
+	    	clock_gettime(CLOCK_REALTIME, &slope_time);
+		}
+		
+    	clock_gettime(CLOCK_REALTIME, &current_time);
+    	diffTime(current_time, mix_time, &time_difference);
+		if (time_difference.tv_sec >= 15) {
+	    	task_mix();
+	    	clock_gettime(CLOCK_REALTIME, &mix_time);
+		}
     }
 }
 
