@@ -11,8 +11,9 @@ unsigned long main_cycle = 200;
 unsigned long secondary_cycle = 100;
 unsigned long executed_time;
 int cycle = 1;
+int cycle_mod = 1;
 
-float speed = 55.0;
+float speed = 550.0;
 float accel = 0;
 int slope = 0; // 1 = UP, -1 = DOWN, 0 = FLAT
 int gas = 0; // 1 = ON, 0 = OFF 
@@ -24,7 +25,8 @@ int distanceSelector = 0; // Potentiometer value (distance)
 int selectedDistance = 0; // Used distance value
 int currentDistance = 0; // Distante left to arrive at final destination
 int executionMode = 0; // 0 = Distance selector, 1 = Tank approach, 2 = Stop mode
-unsigned long time = 0;
+int buttonMode = 0; // 0 = OFF, 1 = ON
+unsigned long time;
 unsigned long current_time;
 unsigned long distance_time;
 unsigned long current_distance_time;
@@ -76,7 +78,8 @@ int comm_server()
                 sprintf(answer, "SLP:  UP\n");
             } else {
                 sprintf(answer, "SLP:FLAT\n");
-            }  
+            }
+            Serial.print(answer);  
         } else if (0 == strcmp("GAS: SET\n",request)) {
             gas = 1;
             sprintf(answer, "GAS:  OK\n");
@@ -155,6 +158,10 @@ int task_speed() {
       accel = 0.5;
     } else if (brake == 1) {
       accel = -0.5;
+    } else if (slope == 1) {
+      accel = -0.25;
+    } else if (slope == -1) {
+      accel = 0.25;
     }
   
     //current_time = millis();
@@ -246,7 +253,7 @@ int task_distanceSelector() {
   distanceSelector = map(analogRead(A1), 0, 1022, 1, 10);
   //distanceSelector = analogRead(A1);
   //char answer[10];
-  //sprintf(answer,"%d\n", distanceSelector);
+  //sprintf(answer,"DISTANCIA: %d\n", analogRead(A1));
   //Serial.print(answer);
   return 0;
 }
@@ -256,24 +263,28 @@ int task_distanceSelector() {
 // --------------------------------------
 int task_displayDistance() {
   int digit;
+
+    char answer[10];
+    sprintf(answer, "MODO: %d\n", executionMode);
+    Serial.print(answer);
   
   if (executionMode == 0) {
-    //char answer[10];
-    //sprintf(answer, "ANTES: %d\n", distanceSelector);
-    //Serial.print(answer);
     digit = distanceSelector;
-    //char answera[10];
-    //sprintf(answera, "DESPUES: %d\n", digit);
-    //Serial.print(answera);
+    char answera[10];
+    sprintf(answera, "DISTANCIA: %d\n", digit);
+    Serial.print(answera);
   } else if (executionMode == 1) {
     // Time interval
-    current_distance_time = millis();
-    float t = (distance_time - current_distance_time) / 1000;
+    //current_distance_time = millis();
+    //float t = (distance_time - current_distance_time) / 1000;
     
     // x = x0 + (v0 * t) + (1/2 * a * t^2)
-    currentDistance = currentDistance + (speed * t) + (0.5 * accel * pow(t, 2));
-    distance_time = millis();
+    currentDistance = currentDistance + (speed * 0.1) + (0.5 * accel * pow(0.1, 2));
+    //distance_time = millis();
     digit = (selectedDistance - currentDistance) / 10000;
+    char answera[10];
+    sprintf(answera, "RESTANTE: %d\n", (selectedDistance - currentDistance));
+    Serial.print(answera);
     
     if ((digit <= 0) && (speed <= 10)) {
       digit = 0;
@@ -314,13 +325,19 @@ int task_displayDistance() {
 // --------------------------------------
 int task_distanceSelect() {
   if (digitalRead(6) == HIGH) {
+    buttonMode = 1;
+  } else if (buttonMode == 1) {
+    char answer[10];
+    sprintf(answer, "PULSADO!!!!\n");
+    Serial.print(answer);
     if (executionMode != 2) {
-      selectedDistance = distanceSelector;
+      selectedDistance = distanceSelector * 10000;
       executionMode = 1;
-      distance_time = millis();     
+      //distance_time = millis();     
     } else if (executionMode == 2) {
       executionMode = 0;
     }
+    buttonMode = 0;
   }
   return 0;
 }
@@ -342,6 +359,7 @@ void setup() {
     pinMode(4, OUTPUT);  // C
     pinMode(3, OUTPUT);  // B
     pinMode(2, OUTPUT);  // A
+    time = millis();
 }
 
 // --------------------------------------
@@ -349,7 +367,7 @@ void setup() {
 // --------------------------------------
 void loop() {
   if (executionMode == 0) {
-    if (cycle % 2 != 0) {
+    if (cycle_mod != 0) {
       //time = millis();
       task_gas();
       task_brake();
@@ -362,6 +380,8 @@ void loop() {
       task_displayDistance();
       task_distanceSelect();
       current_time = millis();
+      cycle = cycle + 1;
+      cycle_mod = cycle % 2;
     } else {
       //time = millis();
       task_gas();
@@ -376,9 +396,11 @@ void loop() {
       task_distanceSelect();
       comm_server();
       current_time = millis();
+      cycle = cycle + 1;
+      cycle_mod = cycle % 2;
     }   
   } else if (executionMode == 1) {
-    if (cycle % 2 != 0) {
+    if (cycle_mod != 0) {
       //time = millis();
       task_gas();
       task_brake();
@@ -389,6 +411,8 @@ void loop() {
       task_lamps();
       task_displayDistance();
       current_time = millis();
+      cycle = cycle + 1;
+      cycle_mod = cycle % 2;
     } else {
       //time = millis();
       task_gas();
@@ -401,9 +425,11 @@ void loop() {
       task_displayDistance();
       comm_server();
       current_time = millis();
+      cycle = cycle + 1;
+      cycle_mod = cycle % 2;
     }     
   } else {
-    if (cycle % 2 != 0) {
+    if (cycle_mod != 0) {
       //time = millis();
       task_gas();
       task_brake();
@@ -414,6 +440,8 @@ void loop() {
       task_lamps();
       task_distanceSelect();
       current_time = millis();
+      cycle = cycle + 1;
+      cycle_mod = cycle % 2;
     } else {
       //time = millis();
       task_gas();
@@ -426,10 +454,11 @@ void loop() {
       task_distanceSelect();
       comm_server();
       current_time = millis();
+      cycle = cycle + 1;
+      cycle_mod = cycle % 2;
     }    
   }
-  cycle = cycle + 1;
   executed_time = current_time - time;
-  delay(main_cycle - executed_time);
-  time = time + main_cycle; 
+  delay(secondary_cycle - executed_time);
+  time = time + secondary_cycle; 
 }
