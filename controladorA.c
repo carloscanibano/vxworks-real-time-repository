@@ -22,15 +22,13 @@
 float speed = 0.0;
 int brk_gas = 0; //0 = BRK, 1 = GAS
 int mix_status = 0; // 0 = OFF, 1 = ON
-int mixing_time = 1;	// Time mixing or recharging (30 secs)
-int cycle = 1;
-struct timespec slope_time;
+int cycle = 0;
+int cycles = 6;
+struct timespec sleep_time;
 struct timespec cycle_time;
 struct timespec finish_time;
 struct timespec start_time;
 struct timespec time_difference;
-float wait1 = 0.0;
-float wait2 = 0.0;
 struct timespec TS;
 #define NS_PER_S  1000000000
 #define PERIOD_NS  500000000
@@ -274,22 +272,18 @@ int task_mix(){
     memset(request,'\0',10);
     memset(answer,'\0',10);
 	
-    if (mixing_time == 1) {
+    if (cycle == 0) {
     	if (mix_status == 0) {
     		strcpy(request, "MIX: SET\n");
     		simulator(request, answer);
     		if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(1);
     		mix_status = 1;
-    		mixing_time = 0;
     	} else {
     		strcpy(request, "MIX: CLR\n");
     		simulator(request, answer);
     		if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(0);
     		mix_status = 0;
-    		mixing_time = 0;
     	}  	
-    } else {
-    	mixing_time = 1;
     }
 
 	return 0;
@@ -300,27 +294,39 @@ int task_mix(){
  *********************************************************/
 void *controller(void *arg)
 {    
+	cycle_time.tv_sec = 5;
+	cycle_time.tv_nsec = 0;
 	clock_gettime(CLOCK_REALTIME, &start_time);
-	long double nsec_cycle = 6000000000;
-	//printf("Polllas1:%f:%f \n\n\n\n\n", (double)start_time.tv_sec, (double)start_time.tv_nsec);
-	cycle_time.tv_sec = 6;
-	cycle_time.tv_nsec = 6000000000 % NS_PER_S;
-	printf("Cycle Time:%f:%f \n\n\n\n\n", (double)cycle_time.tv_sec, (double)cycle_time.tv_nsec);
 	// Endless loop
     while(1) {
-    	task_speed();
-    	task_slope();
-    	task_gas();
-    	task_brake();
-    	task_mix();
+    	if(cycle == 0){
+    		task_speed();
+    		task_slope();
+    		task_mix();  	
+    	}else if(cycle == 1){
+    		task_gas();
+    		task_brake();
+    	}else if(cycle == 2){
+    		task_speed();
+    		task_slope();
+    	}else if(cycle == 3){
+    		task_gas();
+    		task_brake();
+    		task_mix();
+    	}else if(cycle == 4){
+    		task_speed();
+    		task_slope();
+    	}else if(cycle == 5){
+    		task_gas();
+    		task_brake();
+    	}
+   	
     	clock_gettime(CLOCK_REALTIME, &finish_time);
+    	cycle = (cycle+1)% cycles;
     	diffTime(finish_time, start_time, &time_difference);
-    	addTime(cycle_time, start_time, &start_time);
-    	printf("Start Time:%f:%f \n\n\n\n\n", (double)start_time.tv_sec, (double)start_time.tv_nsec);
-    	printf("Finiah Time:%f:%f \n\n\n\n\n", (double)finish_time.tv_sec, (double)finish_time.tv_nsec);
-    	printf("Time Dif:%f:%f \n\n\n\n\n", (double)time_difference.tv_sec, (double)time_difference.tv_nsec);
-    	//clock_nanosleep(CLOCK_REALTIME,0, &cycle_time, NULL);
-    	cycle += 1;
+    	diffTime(cycle_time, time_difference, &sleep_time);
+    	clock_nanosleep(CLOCK_REALTIME,0, &sleep_time, NULL);
+		addTime(cycle_time,start_time, &start_time);
     }
 }
 
