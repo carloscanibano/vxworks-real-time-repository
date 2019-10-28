@@ -22,6 +22,7 @@
 float speed = 0.0;
 int brk_gas = 0; //0 = BRK, 1 = GAS
 int mix_status = 0; // 0 = OFF, 1 = ON
+int mix_cycles = 0;
 int cycle = 0;
 int cycles = 6;
 struct timespec sleep_time;
@@ -272,20 +273,22 @@ int task_mix(){
     memset(request,'\0',10);
     memset(answer,'\0',10);
 	
-    if (cycle == 0) {
-    	if (mix_status == 0) {
-    		strcpy(request, "MIX: SET\n");
-    		simulator(request, answer);
-    		if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(1);
-    		mix_status = 1;
+    
+   	if (mix_cycles == 2) {
+   		if (mix_status == 0) {
+			strcpy(request, "MIX: SET\n");
+    	    simulator(request, answer);
+    	    if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(1);
+    	    mix_status = 1;
     	} else {
-    		strcpy(request, "MIX: CLR\n");
-    		simulator(request, answer);
-    		if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(0);
-    		mix_status = 0;
-    	}  	
+    	    strcpy(request, "MIX: CLR\n");
+    	    simulator(request, answer);
+    	    if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(0);
+    	    mix_status = 0;
+    	}  
+    	mix_cycles = 0;
     }
-
+   	mix_cycles += 1;
 	return 0;
 }
 
