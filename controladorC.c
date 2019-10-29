@@ -22,7 +22,8 @@ float speed = 0.0;
 int bright = 0;
 int distance = 0;
 int loading = 1;// 0 = FINISH, 1 = NOT FINISH
-int brk_gas = 0; //0 = BRK, 1 = GAS
+int brk = 0; //0 = OFF, 1 = ON
+int gas = 0; //0 = OFF, 1 = ON
 int mix_status = 0;// 0 = OFF, 1 = ON
 int light_status = 0;// 0 = OFF, 1 = ON
 int mix_cycles = 0;
@@ -227,32 +228,17 @@ int task_gas(){
     memset(request,'\0',10);
     memset(answer,'\0',10);
 	
-    if(mode == 0){
-    	if (speed <= 55) {
-    		if (brk_gas == 0) {
-    			memset(answer,'\0',10);
-    			simulator("BRK: CLR\n", answer);
-    			if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(0);
-    		}
-    		memset(answer,'\0',10);
-    		simulator("GAS: SET\n", answer);
-    		if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(1);
-    			brk_gas = 1;
-    		}	
-    }else{
-       	if (speed <= 5) {
-       		if (brk_gas == 0) {
-       	    	memset(answer,'\0',10);
-       	    	simulator("BRK: CLR\n", answer);
-       	    	if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(0);
-       	    }
-       	    memset(answer,'\0',10);
-       	    simulator("GAS: SET\n", answer);
-       	    if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(1);
-       	   	brk_gas = 1;
-      		}	
-    }
-	
+	if ((gas == 0) && (speed <= 55)) {
+		memset(answer,'\0',10);
+		simulator("GAS: SET\n", answer);
+		if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(1);
+		gas = 1;	
+	} else if((gas == 1) && (speed > 55)){
+		memset(answer,'\0',10);
+		simulator("GAS: CLR\n", answer);
+		if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(0);
+		gas = 0;
+	}
 	
 	return 0;
 }
@@ -264,39 +250,22 @@ int task_brake(){
 	
 	char request[10];
 	char answer[10];
-    	
-    //clear request and answer
-    memset(request,'\0',10);
-    memset(answer,'\0',10);
-	
-    if (mode == 0){
-    	if (speed > 55) {
-    		if (brk_gas == 1) {
-    			memset(answer,'\0',10);
-    			simulator("GAS: CLR\n", answer);
-    			if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(0);
-    		}
-    		memset(answer,'\0',10);
-    		simulator("BRK: SET\n", answer);
-    		if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(1);
-    		brk_gas = 0;
-    	}	
-    } else {
-       	if (speed > 5) {
-       		if (brk_gas == 1) {
-       		    memset(answer,'\0',10);
-       		    simulator("GAS: CLR\n", answer);
-       		    if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(0);
-       		}
-       		memset(answer,'\0',10);
-       		simulator("BRK: SET\n", answer);
-       		if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(1);
-       		brk_gas = 0;
-       }
-    }
-	
+    
+	memset(answer,'\0',10);
+    			
+	if ((brk == 1) && (speed <= 55)) {
+		simulator("BRK: CLR\n", answer);
+		if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(0);
+		brk = 0;
+	} else if ((brk == 0) && (speed > 55)){
+		simulator("BRK: SET\n", answer);
+		if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(1);
+		brk = 1;
+	}
+		
 	return 0;
 }
+
 
 /**********************************************************
  *  Function: task_mix
@@ -487,17 +456,17 @@ void *controller(void *arg)
     		}else if(cycle == 1){
     			task_distance();
     			task_gas();
+    			task_brake();
     			task_lightSensor();
     			task_lamps();
-    			task_brake();
     		}else if(cycle == 2){
     			task_speed();
     			task_slope();
     			task_lightSensor();
     			task_lamps();
     		}else if(cycle == 3){
-    			task_brake();
     			task_gas();
+    			task_brake();
     			task_lightSensor();
     			task_lamps();
     			task_mix();
@@ -508,8 +477,8 @@ void *controller(void *arg)
     			task_lamps();
     			task_distance();
     		}else if(cycle == 5){
-    			task_brake();
     			task_gas();
+    			task_brake();
     			task_lightSensor();
     			task_lamps();
     		}
