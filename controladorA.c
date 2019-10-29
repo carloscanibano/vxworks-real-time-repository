@@ -20,7 +20,8 @@
  *  Global Variables 
  *********************************************************/
 float speed = 0.0;
-int brk_gas = 0; //0 = BRK, 1 = GAS
+int brk = 0; //0 = OFF, 1 = ON
+int gas = 0; //0 = OFF, 1 = ON
 int mix_status = 0; // 0 = OFF, 1 = ON
 int mix_cycles = 0;
 int cycle = 0;
@@ -220,16 +221,16 @@ int task_gas(){
     memset(request,'\0',10);
     memset(answer,'\0',10);
 	
-	if (speed <= 55) {
-		if (brk_gas == 0) {
-			memset(answer,'\0',10);
-			simulator("BRK: CLR\n", answer);
-			if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(0);
-		}
+	if ((gas == 0) && (speed <= 55)) {
 		memset(answer,'\0',10);
 		simulator("GAS: SET\n", answer);
 		if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(1);
-		brk_gas = 1;
+		gas = 1;	
+	} else if((gas == 1) && (speed > 55)){
+		memset(answer,'\0',10);
+		simulator("GAS: CLR\n", answer);
+		if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(0);
+		gas = 0;
 	}
 	
 	return 0;
@@ -242,23 +243,19 @@ int task_brake(){
 	
 	char request[10];
 	char answer[10];
-    	
-    //clear request and answer
-    memset(request,'\0',10);
-    memset(answer,'\0',10);
-	
-	if (speed > 55) {
-		if (brk_gas == 1) {
-			memset(answer,'\0',10);
-			simulator("GAS: CLR\n", answer);
-			if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(0);
-		}
-		memset(answer,'\0',10);
+    
+	memset(answer,'\0',10);
+    			
+	if ((brk == 1) && (speed <= 55)) {
+		simulator("BRK: CLR\n", answer);
+		if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(0);
+		brk = 0;
+	} else if ((brk == 0) && (speed > 55)){
 		simulator("BRK: SET\n", answer);
 		if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(1);
-		brk_gas = 0;
-	}	
-	
+		brk = 1;
+	}
+		
 	return 0;
 }
 
