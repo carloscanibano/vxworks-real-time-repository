@@ -20,6 +20,7 @@
  *********************************************************/
 float speed = 0.0;
 int bright = 0;
+int serial = 0;// 0 = SIMULATOR, 1 = SERIAL
 int brk = 0; //0 = OFF, 1 = ON
 int gas = 0; //0 = OFF, 1 = ON
 int mix_status = 0;// 0 = OFF, 1 = ON
@@ -161,12 +162,12 @@ int task_speed()
     // request speed
 	strcpy(request,"SPD: REQ\n");
 		
-	//uncomment to use the simulator
-	simulator(request, answer);
-		
-	// uncoment to access serial module
-	//writeSerialMod_9(request);
-	//readSerialMod_9(answer);
+	if(!serial){
+		simulator(request, answer);
+	} else {
+		writeSerialMod_9(request);
+		readSerialMod_9(answer);
+	}
 	
 	// display speed
 	if (1 == sscanf (answer,"SPD:%f\n",&speed)) {
@@ -195,13 +196,12 @@ int task_slope()
 	// request slope
 	strcpy(request,"SLP: REQ\n");
 
-	//uncomment to use the simulator
-	simulator(request, answer);
-
-	// uncoment to access serial module
-	//writeSerialMod_9(request);
-	//readSerialMod_9(answer);
-	
+	if(!serial){
+		simulator(request, answer);
+	} else {
+		writeSerialMod_9(request);
+		readSerialMod_9(answer);
+	}
 
 	// display slope
 	if (0 == strcmp(answer,"SLP:DOWN\n")) displaySlope(-1);	
@@ -222,18 +222,32 @@ int task_gas(){
     //clear request and answer
     memset(request,'\0',10);
     memset(answer,'\0',10);
+    
 	
 	if ((gas == 0) && (speed <= 55)) {
-		memset(answer,'\0',10);
-		simulator("GAS: SET\n", answer);
-		if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(1);
+		strcpy(request, "GAS: SET\n");
+		
+		if(!serial){
+			simulator(request, answer);
+		} else {
+			writeSerialMod_9(request);
+			readSerialMod_9(answer);
+		}	
 		gas = 1;	
 	} else if((gas == 1) && (speed > 55)){
-		memset(answer,'\0',10);
-		simulator("GAS: CLR\n", answer);
-		if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(0);
+		strcpy(request, "GAS: CLR\n");
+		
+		if(!serial){
+			simulator(request, answer);
+		} else {
+			writeSerialMod_9(request);
+			readSerialMod_9(answer);
+		}
+		
 		gas = 0;
 	}
+	
+	if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(gas);
 	
 	return 0;
 }
@@ -246,20 +260,39 @@ int task_brake(){
 	char request[10];
 	char answer[10];
     
+	//clear request and answer
+	memset(request,'\0',10);
 	memset(answer,'\0',10);
     			
 	if ((brk == 1) && (speed <= 55)) {
-		simulator("BRK: CLR\n", answer);
-		if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(0);
+		strcpy(request, "BRK: CLR\n");
+		
+		if(!serial){
+			simulator(request, answer);
+		} else {
+			writeSerialMod_9(request);
+			readSerialMod_9(answer);
+		}
+		
 		brk = 0;
 	} else if ((brk == 0) && (speed > 55)){
-		simulator("BRK: SET\n", answer);
-		if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(1);
+		strcpy(request, "BRK: SET\n");
+		
+		if(!serial){
+			simulator(request, answer);
+		} else {
+			writeSerialMod_9(request);
+			readSerialMod_9(answer);
+		}
+
 		brk = 1;
 	}
-		
+	
+	if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(brk);
+	
 	return 0;
 }
+
 
 /**********************************************************
  *  Function: task_mix
@@ -276,21 +309,35 @@ int task_mix(){
    	if (mix_cycles == 2) {
    		if (mix_status == 0) {
 			strcpy(request, "MIX: SET\n");
-    	    simulator(request, answer);
-    	    if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(1);
+			
+			if(!serial){
+				simulator(request, answer);
+			} else {
+				writeSerialMod_9(request);
+				readSerialMod_9(answer);
+			}
+			
     	    mix_status = 1;
     	} else {
     	    strcpy(request, "MIX: CLR\n");
-    	    simulator(request, answer);
-    	    if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(0);
+    	    
+			if(!serial){
+				simulator(request, answer);
+			} else {
+				writeSerialMod_9(request);
+				readSerialMod_9(answer);
+			}
+			
     	    mix_status = 0;
     	}  
     	mix_cycles = 0;
     }
+   	
+   	if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(mix_status);
    	mix_cycles += 1;
+   	
 	return 0;
 }
-
 
 /**********************************************************
  *  Function: task_lightSensor
@@ -306,24 +353,24 @@ int task_lightSensor(){
     // request light
     strcpy(request,"LIT: REQ\n");
 
-    //uncomment to use the simulator
-    simulator(request, answer);
-
-    // uncoment to access serial module
-    //writeSerialMod_9(request);
-    //readSerialMod_9(answer);
+	if(!serial){
+		simulator(request, answer);
+	} else {
+		writeSerialMod_9(request);
+		readSerialMod_9(answer);
+	}
     	
-
     if (1 == sscanf (answer,"LIT: %d%\n",&bright)) {
-    	if(bright < 20){
+    	if (bright < 20) {
     		displayLightSensor(1);  
-    	}else{
+    	} else {
     		displayLightSensor(0);  
     	}
     }
 
     return 0;
 }
+
 
 /**********************************************************
  *  Function: task_lamps
@@ -336,21 +383,35 @@ int task_lamps(){
     memset(request,'\0',10);
     memset(answer,'\0',10);
 	
-    if (bright < 20) {
-    	if(light_status == 0){
-    		strcpy(request, "LAM: SET\n");
-    		simulator(request, answer);
-    		if (0 == strcmp(answer,"LAM:  OK\n")) displayLamps(1);
-    		light_status = 1;
-    	}
-    } else {
-    	if(light_status == 1){
-    		strcpy(request, "LAM: CLR\n");
-    		simulator(request, answer);
-    		if (0 == strcmp(answer,"LAM:  OK\n")) displayLamps(0);
-    		light_status = 0;
-    	}
-    }  	
+	if (bright < 20) {
+	    if (light_status == 0) {
+	    	strcpy(request, "LAM: SET\n");
+	    	
+			if(!serial){
+				simulator(request, answer);
+			} else {
+				writeSerialMod_9(request);
+				readSerialMod_9(answer);
+			}
+			
+	    	light_status = 1;
+	    }
+	} else {
+	    if(light_status == 1){
+	    	strcpy(request, "LAM: CLR\n");
+	    	
+			if(!serial){
+				simulator(request, answer);
+			} else {
+				writeSerialMod_9(request);
+				readSerialMod_9(answer);
+			}
+			
+	    	light_status = 0;
+		}
+	}
+	
+    if (0 == strcmp(answer,"LAM:  OK\n")) displayLamps(light_status);
  
 	return 0;
 }
