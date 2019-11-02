@@ -22,6 +22,8 @@
 float speed = 0.0;
 int bright = 0;
 int distance = 0;
+int bad_cycle = 0;// 0,1 = GOOD CYCLE TIME, -1 = BAD CYCLE TIME
+int emergency_activated = 0; // 0 = NOT ACTIVATED, 1 = ACTIVATED
 int serial = 0;// 0 = SIMULATOR, 1 = SERIAL
 int loading = 1;// 0 = FINISH, 1 = NOT FINISH
 int brk = 0; //0 = OFF, 1 = ON
@@ -565,6 +567,39 @@ int task_movement()
 }
 
 /**********************************************************
+ *  Function: task_emergency
+ *********************************************************/
+int task_emergency()
+{
+	char request[10];
+	char answer[10];
+	
+   	//--------------------------------
+    //  request movement and display it 
+    //--------------------------------
+	
+	if (emergency_activated == 0) {
+		//clear request and answer
+		memset(request,'\0',10);
+		memset(answer,'\0',10);
+		
+	    // request movement
+		strcpy(request,"ERR: SET\n");
+			
+		if (!serial) {
+			simulator(request, answer);
+		} else {
+			writeSerialMod_9(request);
+			readSerialMod_9(answer);
+		}
+		 
+		if (0 == strcmp(answer,"ERR:  OK\n")) emergency_activated = 1;
+	}
+	    
+	return 0;
+}
+
+/**********************************************************
  *  Function: normal_mode
  *********************************************************/
 int normal_mode()
@@ -672,21 +707,66 @@ int stop_mode()
 }
 
 /**********************************************************
+ *  Function: emergency_mode
+ *********************************************************/
+int emergency_mode()
+{
+	if (cycle == 0) {
+		task_speed();
+		task_slope();
+		task_emergency();
+	} else if (cycle == 1) {
+		task_gas();
+		task_brake();
+		task_lamps();
+		task_mix();
+	} else if (cycle == 2) {
+		task_speed();
+		task_slope();
+		task_emergency();
+	} else if (cycle == 3) {
+		task_gas();
+		task_brake();
+		task_lamps();
+	} else if (cycle == 4) {
+		task_speed();
+		task_slope();
+		task_emergency();
+		task_mix();
+	} else if (cycle == 5) {
+		task_gas();
+		task_brake();
+		task_lamps();
+	}
+	
+	return 0;
+}
+
+/**********************************************************
  *  Function: select_mode
  *********************************************************/
 int select_mode()
-{
-    if ( ((distance >= 11000) && (mode != 0)) || ((distance <= 0) && (speed > 10) && (mode != 0)) ) {
-    	change_mode = 1;
-    	mode = 0;
-    } else if ( (distance > 0) && (distance <= 11000) && (mode != 1) ) {
-    	change_mode = 1;
-    	mode = 1;
-    } else if ( (speed <= 10) && (distance <= 0) && (mode == 1) ) {
-    	change_mode = 1;
-    	mode = 2;
-    	displaySpeed(0);
-    }
+{	
+	if (bad_cycle == -1) {
+		if (mode != 3) {
+    		mode = 3;
+    		change_mode = 1;
+		}
+	} else {
+	    if ( ((distance >= 11000) && (mode != 0)) || ((distance <= 0) && (speed > 10) && (mode != 0)) ) {
+	    	change_mode = 1;
+	    	mode = 0;
+	    } else if ( (distance > 0) && (distance <= 11000) && (mode != 1) ) {
+	    	change_mode = 1;
+	    	mode = 1;
+	    } else if ( (speed <= 10) && (distance <= 0) && (mode == 1) ) {
+	    	change_mode = 1;
+	    	mode = 2;
+	    	displaySpeed(0);
+	    }
+	}
+	
+	return 0;
 }
 
 /**********************************************************
@@ -705,19 +785,31 @@ int change_cycle()
     		cycle = (cycle+1)% cycles_stop;
     	}
     }
+    
+	return 0;
 }
 
+/**********************************************************
+ *  Function: check_cycle
+ *********************************************************/
+int check_cycle()
+{
+	diffTime(finish_time, start_time, &time_difference);
+	addTime(cycle_time,start_time, &start_time); 
+	bad_cycle = compTime(start_time, finish_time);
 	
+	return 0;
+}
 /**********************************************************
  *  Function: finish_cycle
  *********************************************************/
 int finish_cycle()
 {	
     //complete the secundary cycle time
-	diffTime(finish_time, start_time, &time_difference);
 	diffTime(cycle_time, time_difference, &sleep_time);
 	clock_nanosleep(CLOCK_REALTIME,0, &sleep_time, NULL);
-	addTime(cycle_time,start_time, &start_time);
+	
+	return 0;
 }
 
 /**********************************************************
@@ -736,12 +828,22 @@ void *controller(void *arg)
     		braked_mode();
     	} else if (mode == 2) {
     		stop_mode();
+    	} else if (mode == 3) {
+    		emergency_mode();
     	}
     	clock_gettime(CLOCK_REALTIME, &finish_time);
-    	 
-    	select_mode();
+    	
+    	check_cycle();
+    	
+    	if(mode != 3){
+        	select_mode();
+    	}
+    	
     	change_cycle();
-        finish_cycle();
+    	
+    	if(bad_cycle != -1){
+    		finish_cycle();
+    	}       
     }
 }
 

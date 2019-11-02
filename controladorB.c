@@ -14,6 +14,7 @@
 /**********************************************************
  *  Constants
  **********************************************************/
+#define NS_PER_S  1000000000
 
 /**********************************************************
  *  Global Variables 
@@ -33,37 +34,6 @@ struct timespec cycle_time;
 struct timespec finish_time;
 struct timespec start_time;
 struct timespec time_difference;
-struct timespec TS;
-
-#define NS_PER_S  1000000000
-#define PERIOD_NS  500000000
-#define TIME_TO_RELOAD   30
-#define INIT_HIGH   0
-
-// DISPLAY DELAY
-#define TIME_DISPLAY_SEC 0
-#define TIME_DISPLAY_NSEC 500000000
-
-
-// FORCING ERRORS
-#define TIME_BW_ERRORS   30
-#define ERROR_DELAY_TIME 1
-
-/**********************************************************
- *  Function: getClock 
- *********************************************************/
-double getClock()
-{
-    struct timespec tp;
-    double reloj;
-    
-    clock_gettime (CLOCK_REALTIME, &tp);
-    reloj = ((double)tp.tv_sec) + 
-	    ((double)tp.tv_nsec) / ((double)NS_PER_S);
-    //printf ("%d:%d",tp.tv_sec,tp.tv_nsec);
-
-    return (reloj);
-}
 
 /**********************************************************
  *  Function: diffTime 
@@ -96,54 +66,6 @@ void addTime(struct timespec end,
 }
 
 /**********************************************************
- *  Function: compTime 
- *********************************************************/
-int compTime(struct timespec t1, 
-			  struct timespec t2)
-{
-	if (t1.tv_sec == t2.tv_sec) {
-		if (t1.tv_nsec == t2.tv_nsec) {
-			return (0);
-		} else if (t1.tv_nsec > t2.tv_nsec) {
-			return (1);
-		} else if (t1.tv_nsec < t2.tv_nsec) {
-			return (-1);
-		}
-	} else if (t1.tv_sec > t2.tv_sec) {
-		return (1);
-	} else if (t1.tv_sec < t2.tv_sec) {
-		return (-1);
-	} 
-	return (0);
-}
-
-/**********************************************************
- *  Function: retraso 
- *********************************************************/
-double retraso ()
-{	
-	static int init = 0;
-    static int lastCount = 0;
-    static struct timespec initClock;
-    struct timespec actualClock, diffClock;
-    int actualCount;
-    int lapso;
-    int ret = 0;
-
-    if (0 == init) {
-		clock_gettime(CLOCK_REALTIME, &initClock); 
-    }
-	clock_gettime(CLOCK_REALTIME, &actualClock); 
-	diffTime(actualClock,initClock, &diffClock);
-    lapso = diffClock.tv_sec;
-    actualCount = lapso / TIME_BW_ERRORS;
-    if (lastCount < actualCount) {
-        ret = ERROR_DELAY_TIME * actualCount;
-    } 
-    return (ret);
-}
-
-/**********************************************************
  *  Function: task_speed
  *********************************************************/
 int task_speed()
@@ -162,7 +84,7 @@ int task_speed()
     // request speed
 	strcpy(request,"SPD: REQ\n");
 		
-	if(!serial){
+	if (!serial) {
 		simulator(request, answer);
 	} else {
 		writeSerialMod_9(request);
@@ -196,7 +118,7 @@ int task_slope()
 	// request slope
 	strcpy(request,"SLP: REQ\n");
 
-	if(!serial){
+	if (!serial) {
 		simulator(request, answer);
 	} else {
 		writeSerialMod_9(request);
@@ -214,30 +136,36 @@ int task_slope()
 /**********************************************************
  *  Function: task_gas
  *********************************************************/
-int task_gas(){
-	
+int task_gas()
+{
 	char request[10];
 	char answer[10];
+	
+   	//--------------------------------
+    //  request gas on or off 
+    //--------------------------------
     	
     //clear request and answer
     memset(request,'\0',10);
     memset(answer,'\0',10);
     
 	
-	if ((gas == 0) && (speed <= 55)) {
+	if ( (gas == 0) && (speed <= 55) ) {
+		// request gas on
 		strcpy(request, "GAS: SET\n");
 		
-		if(!serial){
+		if (!serial) {
 			simulator(request, answer);
 		} else {
 			writeSerialMod_9(request);
 			readSerialMod_9(answer);
 		}	
 		gas = 1;	
-	} else if((gas == 1) && (speed > 55)){
+	} else if ( (gas == 1) && (speed > 55) ) {
+		// request gas off
 		strcpy(request, "GAS: CLR\n");
 		
-		if(!serial){
+		if (!serial) {
 			simulator(request, answer);
 		} else {
 			writeSerialMod_9(request);
@@ -247,6 +175,7 @@ int task_gas(){
 		gas = 0;
 	}
 	
+	// display gas status
 	if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(gas);
 	
 	return 0;
@@ -255,19 +184,24 @@ int task_gas(){
 /**********************************************************
  *  Function: task_brake
  *********************************************************/
-int task_brake(){
-	
+int task_brake()
+{
 	char request[10];
 	char answer[10];
+	
+   	//--------------------------------
+    //  request brake on or off
+    //--------------------------------
     
 	//clear request and answer
 	memset(request,'\0',10);
 	memset(answer,'\0',10);
     			
-	if ((brk == 1) && (speed <= 55)) {
+	if ( (brk == 1) && (speed <= 55) ) {
+		// request break off
 		strcpy(request, "BRK: CLR\n");
 		
-		if(!serial){
+		if (!serial) {
 			simulator(request, answer);
 		} else {
 			writeSerialMod_9(request);
@@ -275,10 +209,11 @@ int task_brake(){
 		}
 		
 		brk = 0;
-	} else if ((brk == 0) && (speed > 55)){
+	} else if ( (brk == 0) && (speed > 55) ){
+		// request break on
 		strcpy(request, "BRK: SET\n");
 		
-		if(!serial){
+		if (!serial) {
 			simulator(request, answer);
 		} else {
 			writeSerialMod_9(request);
@@ -288,6 +223,7 @@ int task_brake(){
 		brk = 1;
 	}
 	
+	// display break status
 	if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(brk);
 	
 	return 0;
@@ -297,9 +233,14 @@ int task_brake(){
 /**********************************************************
  *  Function: task_mix
  *********************************************************/
-int task_mix(){
+int task_mix()
+{
 	char request[10];
 	char answer[10];
+	
+   	//--------------------------------
+    //  request mix on or off 
+    //--------------------------------
     	
     //clear request and answer
     memset(request,'\0',10);
@@ -308,9 +249,10 @@ int task_mix(){
     
    	if (mix_cycles == 2) {
    		if (mix_status == 0) {
+   			// request mix on
 			strcpy(request, "MIX: SET\n");
 			
-			if(!serial){
+			if (!serial) {
 				simulator(request, answer);
 			} else {
 				writeSerialMod_9(request);
@@ -319,9 +261,10 @@ int task_mix(){
 			
     	    mix_status = 1;
     	} else {
+   			// request mix off
     	    strcpy(request, "MIX: CLR\n");
     	    
-			if(!serial){
+			if (!serial) {
 				simulator(request, answer);
 			} else {
 				writeSerialMod_9(request);
@@ -333,6 +276,7 @@ int task_mix(){
     	mix_cycles = 0;
     }
    	
+	// display mix status
    	if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(mix_status);
    	mix_cycles += 1;
    	
@@ -342,9 +286,14 @@ int task_mix(){
 /**********************************************************
  *  Function: task_lightSensor
  *********************************************************/
-int task_lightSensor(){
+int task_lightSensor()
+{
 	char request[10];
 	char answer[10];
+	
+   	//--------------------------------
+    //  request bright and display it
+    //--------------------------------
     	
     //clear request and answer
     memset(request,'\0',10);
@@ -353,15 +302,16 @@ int task_lightSensor(){
     // request light
     strcpy(request,"LIT: REQ\n");
 
-	if(!serial){
+	if (!serial) {
 		simulator(request, answer);
 	} else {
 		writeSerialMod_9(request);
 		readSerialMod_9(answer);
 	}
-    	
-    if (1 == sscanf (answer,"LIT: %d%\n",&bright)) {
-    	if (bright < 20) {
+    
+	// display light sensor status
+    if (1 == sscanf (answer,"LIT: %2d%\n",&bright)) {
+    	if (bright < 50) {
     		displayLightSensor(1);  
     	} else {
     		displayLightSensor(0);  
@@ -375,19 +325,25 @@ int task_lightSensor(){
 /**********************************************************
  *  Function: task_lamps
  *********************************************************/
-int task_lamps(){
+int task_lamps()
+{
 	char request[10];
 	char answer[10];
+	
+   	//--------------------------------
+    //  request lamps on or off
+    //--------------------------------
     	
     //clear request and answer
     memset(request,'\0',10);
     memset(answer,'\0',10);
 	
-	if (bright < 20) {
+	if (bright < 50) {
 	    if (light_status == 0) {
+	        // request lights on
 	    	strcpy(request, "LAM: SET\n");
 	    	
-			if(!serial){
+			if (!serial) {
 				simulator(request, answer);
 			} else {
 				writeSerialMod_9(request);
@@ -397,10 +353,11 @@ int task_lamps(){
 	    	light_status = 1;
 	    }
 	} else {
-	    if(light_status == 1){
+	    if (light_status == 1) {
+	        // request lights off
 	    	strcpy(request, "LAM: CLR\n");
 	    	
-			if(!serial){
+			if (!serial) {
 				simulator(request, answer);
 			} else {
 				writeSerialMod_9(request);
@@ -411,11 +368,26 @@ int task_lamps(){
 		}
 	}
 	
+	// display lights status
     if (0 == strcmp(answer,"LAM:  OK\n")) displayLamps(light_status);
  
 	return 0;
 }
 
+/**********************************************************
+ *  Function: finish_cycle
+ *********************************************************/
+int finish_cycle()
+{
+	//complete the secundary cycle time
+	cycle = (cycle+1)% cycles;
+	diffTime(finish_time, start_time, &time_difference);
+	diffTime(cycle_time, time_difference, &sleep_time);
+	clock_nanosleep(CLOCK_REALTIME,0, &sleep_time, NULL);
+	addTime(cycle_time,start_time, &start_time);
+	
+	return 0;
+}
 
 /**********************************************************
  *  Function: controller
@@ -427,46 +399,41 @@ void *controller(void *arg)
 	clock_gettime(CLOCK_REALTIME, &start_time);
 	// Endless loop
 	while(1) {
-	    if(cycle == 0){
+	    if (cycle == 0) {
 	    	task_speed();
 	    	task_slope();
 	    	task_lightSensor();
 	    	task_lamps();
 	    	task_mix();
-	    }else if(cycle == 1){
+	    }else if (cycle == 1) {
 	    	task_gas();
 	    	task_brake();
 	    	task_lightSensor();
 	    	task_lamps();
-	    }else if(cycle == 2){
+	    }else if (cycle == 2) {
 	    	task_speed();
 	    	task_slope();
 	    	task_lightSensor();
 	    	task_lamps();
-	    }else if(cycle == 3){
+	    }else if (cycle == 3) {
 	    	task_gas();
 	    	task_brake();
 	    	task_lightSensor();
 	    	task_lamps();
 	    	task_mix();
-	    }else if(cycle == 4){
+	    }else if (cycle == 4) {
 	    	task_speed();
 	    	task_slope();
 	    	task_lightSensor();
 	    	task_lamps();
-	    }else if(cycle == 5){
+	    }else if (cycle == 5) {
 	    	task_gas();
 	    	task_brake();
 	    	task_lightSensor();
 	    	task_lamps();
 	    }
-	   	
 	    clock_gettime(CLOCK_REALTIME, &finish_time);
-	    cycle = (cycle+1)% cycles;
-	    diffTime(finish_time, start_time, &time_difference);
-	    diffTime(cycle_time, time_difference, &sleep_time);
-	    clock_nanosleep(CLOCK_REALTIME,0, &sleep_time, NULL);
-		addTime(cycle_time,start_time, &start_time);
+	    finish_cycle();
 	}
 }
 

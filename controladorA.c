@@ -15,12 +15,13 @@
 /**********************************************************
  *  Constants
  **********************************************************/
+#define NS_PER_S  1000000000
 
 /**********************************************************
  *  Global Variables 
  *********************************************************/
 float speed = 0.0;
-int serial = 1;// 0 = SIMULATOR, 1 = SERIAL
+int serial = 0;// 0 = SIMULATOR, 1 = SERIAL
 int brk = 0; //0 = OFF, 1 = ON
 int gas = 0; //0 = OFF, 1 = ON
 int mix_status = 0; // 0 = OFF, 1 = ON
@@ -32,35 +33,6 @@ struct timespec cycle_time;
 struct timespec finish_time;
 struct timespec start_time;
 struct timespec time_difference;
-#define NS_PER_S  1000000000
-#define PERIOD_NS  500000000
-#define TIME_TO_RELOAD   30
-#define INIT_HIGH   0
-
-// DISPLAY DELAY
-#define TIME_DISPLAY_SEC 0
-#define TIME_DISPLAY_NSEC 500000000
-
-
-// FORCING ERRORS
-#define TIME_BW_ERRORS   30
-#define ERROR_DELAY_TIME 1
-
-/**********************************************************
- *  Function: getClock 
- *********************************************************/
-double getClock()
-{
-    struct timespec tp;
-    double reloj;
-    
-    clock_gettime (CLOCK_REALTIME, &tp);
-    reloj = ((double)tp.tv_sec) + 
-	    ((double)tp.tv_nsec) / ((double)NS_PER_S);
-    //printf ("%d:%d",tp.tv_sec,tp.tv_nsec);
-
-    return (reloj);
-}
 
 /**********************************************************
  *  Function: diffTime 
@@ -119,7 +91,7 @@ int task_speed()
 	}
 	
 	// display speed
-	if (1 == sscanf (answer,"SPD:%f\n",&speed)) {
+	if (1 == sscanf (answer,"SPD:%3f\n",&speed)) {
 		displaySpeed(speed);  
 	}
 	
@@ -163,10 +135,15 @@ int task_slope()
 /**********************************************************
  *  Function: task_gas
  *********************************************************/
-int task_gas(){
+int task_gas()
+{
 	
 	char request[10];
 	char answer[10];
+	
+   	//--------------------------------
+    //  request gas on or off 
+    //--------------------------------
     	
     //clear request and answer
     memset(request,'\0',10);
@@ -174,6 +151,7 @@ int task_gas(){
     
 	
 	if ( (gas == 0) && (speed <= 55) ) {
+		// request gas on
 		strcpy(request, "GAS: SET\n");
 		
 		if (!serial) {
@@ -184,6 +162,7 @@ int task_gas(){
 		}	
 		gas = 1;	
 	} else if ( (gas == 1) && (speed > 55) ) {
+		// request gas off
 		strcpy(request, "GAS: CLR\n");
 		
 		if (!serial) {
@@ -196,6 +175,7 @@ int task_gas(){
 		gas = 0;
 	}
 	
+	// display gas status
 	if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(gas);
 	
 	return 0;
@@ -204,16 +184,22 @@ int task_gas(){
 /**********************************************************
  *  Function: task_brake
  *********************************************************/
-int task_brake(){
+int task_brake()
+{
 	
 	char request[10];
 	char answer[10];
+	
+   	//--------------------------------
+    //  request brake on or off
+    //--------------------------------
     
 	//clear request and answer
 	memset(request,'\0',10);
 	memset(answer,'\0',10);
     			
 	if ( (brk == 1) && (speed <= 55) ) {
+		// request break off
 		strcpy(request, "BRK: CLR\n");
 		
 		if (!serial) {
@@ -225,6 +211,7 @@ int task_brake(){
 		
 		brk = 0;
 	} else if ( (brk == 0) && (speed > 55) ){
+		// request break on
 		strcpy(request, "BRK: SET\n");
 		
 		if (!serial) {
@@ -237,6 +224,7 @@ int task_brake(){
 		brk = 1;
 	}
 	
+	// display break status
 	if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(brk);
 	
 	return 0;
@@ -246,9 +234,14 @@ int task_brake(){
 /**********************************************************
  *  Function: task_mix
  *********************************************************/
-int task_mix(){
+int task_mix()
+{
 	char request[10];
 	char answer[10];
+	
+   	//--------------------------------
+    //  request mix on or off 
+    //--------------------------------
     	
     //clear request and answer
     memset(request,'\0',10);
@@ -257,6 +250,7 @@ int task_mix(){
     
    	if (mix_cycles == 2) {
    		if (mix_status == 0) {
+   			// request mix on
 			strcpy(request, "MIX: SET\n");
 			
 			if (!serial) {
@@ -268,6 +262,7 @@ int task_mix(){
 			
     	    mix_status = 1;
     	} else {
+   			// request mix off
     	    strcpy(request, "MIX: CLR\n");
     	    
 			if (!serial) {
@@ -282,9 +277,25 @@ int task_mix(){
     	mix_cycles = 0;
     }
    	
+	// display mix status
    	if (0 == strcmp(answer,"MIX:  OK\n")) displayMix(mix_status);
    	mix_cycles += 1;
    	
+	return 0;
+}
+
+/**********************************************************
+ *  Function: finish_cycle
+ *********************************************************/
+int finish_cycle()
+{
+	//complete the secundary cycle time
+	cycle = (cycle+1)% cycles;
+	diffTime(finish_time, start_time, &time_difference);
+	diffTime(cycle_time, time_difference, &sleep_time);
+	clock_nanosleep(CLOCK_REALTIME,0, &sleep_time, NULL);
+	addTime(cycle_time,start_time, &start_time);
+	
 	return 0;
 }
 
@@ -321,11 +332,7 @@ void *controller(void *arg)
     	}
    	
     	clock_gettime(CLOCK_REALTIME, &finish_time);
-    	cycle = (cycle+1)% cycles;
-    	diffTime(finish_time, start_time, &time_difference);
-    	diffTime(cycle_time, time_difference, &sleep_time);
-    	clock_nanosleep(CLOCK_REALTIME,0, &sleep_time, NULL);
-		addTime(cycle_time,start_time, &start_time);
+    	finish_cycle();
     }
 }
 
@@ -352,7 +359,7 @@ int main ()
 	displayInit(SIGRTMAX);
 	
 	//sinitSerialMod_9600 uncomment to work with serial module
-	initSerialMod_WIN_9600 ();
+	//initSerialMod_WIN_9600 ();
 
     /* Create first thread */
     pthread_create (&thread_ctrl, NULL, controller, NULL);
