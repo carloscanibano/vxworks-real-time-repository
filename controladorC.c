@@ -203,6 +203,7 @@ int task_gas()
     	}
     } else if (mode == 1) {
     	if ((gas == 0) && (speed <= 2.5)) {
+    		// request gas on
     		strcpy(request, "GAS: SET\n");
     		
     		if (!serial) {
@@ -213,6 +214,7 @@ int task_gas()
     		}	
     		gas = 1;	
     	} else if( (gas == 1) && (speed > 2.5) ) {
+    		// request gas off
     		strcpy(request, "GAS: CLR\n");
     		
     		if (!serial) {
@@ -224,21 +226,9 @@ int task_gas()
     		
     		gas = 0;
     	}
-    } else {
-    	if (gas == 1) {
-    		strcpy(request, "GAS: CLR\n");
-    		
-    		if (!serial) {
-    			simulator(request, answer);
-    		} else {
-    			writeSerialMod_9(request);
-    			readSerialMod_9(answer);
-    		}
-    		
-    		gas = 0;
-    	}
-    }
+    }  
 	
+	//display gas status
 	if (0 == strcmp(answer,"GAS:  OK\n")) displayGas(gas);
 	
 	return 0;
@@ -288,6 +278,7 @@ int task_brake()
 		}
 	} else if (mode == 1) {
 		if ( (brk == 1) && (speed <= 2.5) ) {
+			// request break off
 			strcpy(request, "BRK: CLR\n");
 			
 			if(!serial){
@@ -299,19 +290,7 @@ int task_brake()
 			
 			brk = 0;
 		}else if ( (brk == 0) && (speed > 2.5) ) {
-			strcpy(request, "BRK: SET\n");
-			
-			if (!serial) {
-				simulator(request, answer);
-			} else {
-				writeSerialMod_9(request);
-				readSerialMod_9(answer);
-			}
-
-			brk = 1;
-		}
-	} else {
-		if (brk == 0) {
+			// request break on
 			strcpy(request, "BRK: SET\n");
 			
 			if (!serial) {
@@ -324,7 +303,8 @@ int task_brake()
 			brk = 1;
 		}
 	}
-	
+
+	//display brake status
 	if (0 == strcmp(answer,"BRK:  OK\n")) displayBrake(brk);
 	
 	return 0;
@@ -516,6 +496,7 @@ int task_distance()
 		readSerialMod_9(answer);
 	}
 	
+	//display distance
 	if (0 == strcmp(answer,"MSG: ERR\n")) {
 		distance = -1000;
 		displayDistance(distance); 
@@ -527,9 +508,9 @@ int task_distance()
 }
 
 /**********************************************************
- *  Function: task_lamps
+ *  Function: task_unload
  *********************************************************/
-int task_movement()
+int task_unload()
 {
 	char request[10];
 	char answer[10];
@@ -552,7 +533,7 @@ int task_movement()
 		readSerialMod_9(answer);
 	}
 	 
-	// display movement status
+	// display loading status
 	if (0 == strcmp(answer,"STP:STOP\n")) {
 	    displayStop(1);
 	} else if (0 == strcmp(answer,"STP:  GO\n")) {
@@ -593,11 +574,11 @@ int normal_mode()
 		task_lamps();
 		task_mix();
 	} else if (cycle == 4) {
+		task_distance();
 		task_speed();
 		task_slope();
 		task_lightSensor();
 		task_lamps();
-		task_distance();
 	} else if (cycle == 5) {
 		task_gas();
 		task_brake();
@@ -657,14 +638,14 @@ int braked_mode()
 int stop_mode()
 {
 	if (cycle == 0) {
-		task_movement();
+		task_unload();
 		task_lamps();
 		task_mix();
 	} else if (cycle == 1) {
-		task_movement();
+		task_unload();
 		task_lamps();
 	} else if (cycle == 2) {
-		task_movement();
+		task_unload();
 		task_lamps();
 	} 
 	
@@ -687,6 +668,8 @@ int select_mode()
     	mode = 2;
     	displaySpeed(0);
     }
+    
+    return 0;
 }
 
 /**********************************************************
@@ -705,6 +688,8 @@ int change_cycle()
     		cycle = (cycle+1)% cycles_stop;
     	}
     }
+    
+    return 0;
 }
 
 	
@@ -718,6 +703,8 @@ int finish_cycle()
 	diffTime(cycle_time, time_difference, &sleep_time);
 	clock_nanosleep(CLOCK_REALTIME,0, &sleep_time, NULL);
 	addTime(cycle_time,start_time, &start_time);
+	
+	return 0;
 }
 
 /**********************************************************
