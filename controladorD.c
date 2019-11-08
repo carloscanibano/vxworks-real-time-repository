@@ -25,7 +25,6 @@ int distance = 0;
 int bad_cycle = 0;// 0,1 = GOOD CYCLE TIME, -1 = BAD CYCLE TIME
 int emergency_activated = 0; // 0 = NOT ACTIVATED, 1 = ACTIVATED
 int serial = 0;// 0 = SIMULATOR, 1 = SERIAL
-int loading = 1;// 0 = FINISH, 1 = NOT FINISH
 int brk = 0; //0 = OFF, 1 = ON
 int gas = 0; //0 = OFF, 1 = ON
 int mix_status = 0;// 0 = OFF, 1 = ON

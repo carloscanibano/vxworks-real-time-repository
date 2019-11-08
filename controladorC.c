@@ -23,7 +23,6 @@ float speed = 0.0;
 int bright = 0;
 int distance = 0;
 int serial = 0;// 0 = SIMULATOR, 1 = SERIAL
-int loading = 1;// 0 = FINISH, 1 = NOT FINISH
 int brk = 0; //0 = OFF, 1 = ON
 int gas = 0; //0 = OFF, 1 = ON
 int mix_status = 0;// 0 = OFF, 1 = ON
