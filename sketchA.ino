@@ -7,19 +7,20 @@
 // --------------------------------------
 // Global Variables
 // --------------------------------------
-
-//Test
-unsigned long main_cycle = 200;
 unsigned long secondary_cycle = 100;
-unsigned long executed_time;
+unsigned long executed_time; // Secondary cycle executed time
+
 int cycle = 1;
+int cycle_mod = 1;
 
 float speed = 55.0;
+float accel = 0;
 int slope = 0; // 1 = UP, -1 = DOWN, 0 = FLAT
 int gas = 0; // 1 = ON, 0 = OFF 
 int brake = 0; // 1 = 0N, 0 = OFF
 int mixer = 0; // 1 = ON, 0 = OFF
-unsigned long time = 0;
+int executionMode = 0; // 0 = Distance selector, 1 = Tank approach, 2 = Stop mode, 3 = Emergency
+unsigned long time;
 unsigned long current_time;
 
 // --------------------------------------
@@ -70,7 +71,7 @@ int comm_server()
             } else {
                 sprintf(answer, "SLP:FLAT\n");
             }
-            Serial.print(answer);
+            Serial.print(answer);  
         } else if (0 == strcmp("GAS: SET\n",request)) {
             gas = 1;
             sprintf(answer, "GAS:  OK\n");
@@ -108,25 +109,35 @@ int comm_server()
 // Function: task_speed
 // --------------------------------------
 int task_speed() {
-  float accel = 0;
-  if ((gas == 1) && (slope == -1)) {
-    accel = 0.75;
-  } else if ((gas == 1) && (slope == 1)) {
-    accel = 0.25;
-  } else if ((brake == 1) && (slope == -1)) {
-    accel = -0.25;
-  } else if ((brake == 1) && (slope == 1)) {
-    accel = -0.75;
-  } else if (gas == 1) {
-    accel = 0.5;
-  } else if (brake == 1) {
-    accel = -0.5;
+  // Speed should not be dropped below 0
+  if ((executionMode == 2) || (speed < 0.0)) {
+    speed = 0.0;
+    accel = 0.0;
+  } else {
+    if ((gas == 1) && (slope == -1)) {
+      accel = 0.75;
+    } else if ((gas == 1) && (slope == 1)) {
+      accel = 0.25;
+    } else if ((brake == 1) && (slope == -1)) {
+      accel = -0.25;
+    } else if ((brake == 1) && (slope == 1)) {
+      accel = -0.75;
+    } else if (gas == 1) {
+      accel = 0.5;
+    } else if (brake == 1) {
+      accel = -0.5;
+    } else if (slope == 1) {
+      accel = -0.25;
+    } else if (slope == -1) {
+      accel = 0.25;
+    } else if (slope == 0) {
+      accel = 0.0;
+    }
+    // Recalculating speed, time is always 0.1 seconds (secondary cycle)
+    speed = speed + (accel * 0.1);
+    // Speed may move between 0-70
+    analogWrite(10, map(speed, 0, 70, 0, 255));
   }
-  
-  //current_time = millis();
-  speed = speed + (accel * 0.1);
-  analogWrite(10, map(speed, 40, 70, 0, 255));
-  //time = millis();
   
   return 0;
 }
@@ -182,6 +193,36 @@ int task_slope() {
 }
 
 // --------------------------------------
+// Function: mode_0
+// --------------------------------------
+int mode_0() {
+  if (cycle_mod != 0) {
+    task_gas();
+    task_brake();        
+    task_mixer();    
+    task_slope();        
+    task_speed();               
+    cycle = cycle + 1;
+    cycle_mod = cycle % 2;
+    current_time = millis();
+  } else {    
+    task_gas();
+    task_brake();
+    task_mixer();
+    task_slope();
+    task_speed();
+    comm_server();   
+    cycle = cycle + 1;
+    cycle_mod = cycle % 2;
+    current_time = millis();
+  }
+  executed_time = current_time - time;
+  delay(secondary_cycle - executed_time);
+  time = time + secondary_cycle;
+  return 0;
+}
+
+// --------------------------------------
 // Function: setup
 // --------------------------------------
 void setup() {  
@@ -192,32 +233,12 @@ void setup() {
     pinMode(10, OUTPUT); //SPEED
     pinMode(9, INPUT);   //SLOPE UP
     pinMode(8, INPUT);   //SLOPE DOWN
+    time = millis();
 }
 
 // --------------------------------------
 // Function: loop
 // --------------------------------------
 void loop() {
-  if (cycle % 2 != 0) {
-    //time = millis();
-    task_gas();
-    task_brake();
-    task_mixer();
-    task_slope();
-    task_speed();
-    current_time = millis();
-  } else {
-    //time = millis();
-    task_gas();
-    task_brake();
-    task_mixer();
-    task_slope();
-    task_speed();
-    comm_server();
-    current_time = millis();
-  }
-  cycle = cycle + 1;
-  executed_time = current_time - time;
-  delay(main_cycle - executed_time);
-  time = time + main_cycle;
+  mode_0();
 }

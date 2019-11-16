@@ -133,6 +133,10 @@ int comm_server()
               sprintf(answer, "DS:00000\n");
             }
             Serial.print(answer);
+        } else if (0 == strcmp("ERR: SET\n",request)) {
+            executionMode = 3;
+            sprintf(answer, "ERR:  OK\n");
+            Serial.print(answer);
         } else {
             // error, send error message
             sprintf(answer,"MSG: ERR\n");
@@ -455,6 +459,38 @@ int mode_2() {
 }
 
 // --------------------------------------
+// Function: mode_3
+// --------------------------------------
+int mode_3() {
+  if (cycle_mod != 0) {
+    task_gas();
+    task_brake();
+    task_mixer();
+    task_slope();
+    task_speed(); 
+    task_lamps();
+    cycle = cycle + 1;
+    cycle_mod = cycle % 2;
+    current_time = millis();
+  } else {
+    task_gas();
+    task_brake();
+    task_mixer();
+    task_slope();
+    task_speed();
+    task_lamps();
+    comm_server();
+    cycle = cycle + 1;
+    cycle_mod = cycle % 2;
+    current_time = millis();
+  }
+  executed_time = current_time - time;
+  delay(secondary_cycle - executed_time);
+  time = time + secondary_cycle;  
+  return 0;  
+}
+
+// --------------------------------------
 // Function: setup
 // --------------------------------------
 void setup() {  
@@ -481,4 +517,5 @@ void loop() {
   if (executionMode == 0) mode_0();
   if (executionMode == 1) mode_1();
   if (executionMode == 2) mode_2();
+  if (executionMode == 3) mode_3();
 }
